@@ -1,0 +1,20 @@
+# trove-classifiers==2025.1.15.22 \
+#     --hash=sha256:5f19c789d4f17f501d36c94dbbf969fb3e8c2784d008e6f5164dd2c3d6a2b07c
+# pluggy==1.5.0 \
+#     --hash=sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669
+# pathspec==0.12.1 \
+#     --hash=sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08
+# packaging==24.2 \
+#     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759
+# hatchling==1.27.0 \
+#     --hash=sha256:d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b
+# scikit_build_core==0.10.7 \
+#     --hash=sha256:5e13ab7ca7c3c6dd019607c3a6f53cba67dade8757c4c4f75b459e2f90e4dbc3
+cmake==3.31.4 \
+    --hash=sha256:20be7cdb41903edf85e8a498c4beff8d6854acbb087abfb07c362c738bdf0018
+numpy==2.2.1 \
+    --hash=sha256:360137f8fb1b753c5cde3ac388597ad680eccbbbb3865ab65efea062c4a1fd16
+scipy==1.15.1 \
+    --hash=sha256:3fe1d95944f9cf6ba77aa28b82dd6bb2a5b52f2026beb39ecf05304b8392864b
+qulacs==0.6.11 \
+    --hash=sha256:98a5b6957807c4e5f6ad12f5bad71a4b90d8211c80c38b074304f58dad7b0988
