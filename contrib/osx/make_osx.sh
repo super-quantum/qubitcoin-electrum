@@ -76,9 +76,12 @@ info "Installing build dependencies"
 #       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
 #         and I am not quite sure how to break the circular dependence there (I guess we could introduce
 #         "requirements-build-base-base.txt" with just wheel in it...)
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+python3 -m pip install --no-build-isolation --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-build-base.txt \
     || fail "Could not install build dependencies (base)"
+python3 -m pip install --no-build-isolation --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements-build-qulacs.txt \
+    || fail "Could not install build dependencies (qulacs)"
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
     || fail "Could not install build dependencies (mac)"
