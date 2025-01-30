@@ -23,7 +23,11 @@
 import os
 import threading
 import time
-from typing import Optional, Dict, Mapping, Sequence, TYPE_CHECKING
+import traceback
+from tracemalloc import start
+from typing import Optional, Dict, Mapping, Sequence, TYPE_CHECKING, cast
+
+from .qhash import qhash
 
 from . import util
 from .bitcoin import hash_encode
@@ -40,7 +44,7 @@ _logger = get_logger(__name__)
 HEADER_SIZE = 80  # bytes
 
 # see https://github.com/bitcoin/bitcoin/blob/feedb9c84e72e4fff489810a2bbeec09bcda5763/src/chainparams.cpp#L76
-MAX_TARGET = 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff  # compact: 0x1d00ffff
+MAX_TARGET = 0x0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  # compact: 0x1d00ffff
 
 
 class MissingHeader(Exception):
@@ -79,12 +83,13 @@ def hash_header(header: dict) -> str:
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
+    print(f"hashing height {header.get('block_height')}")
     return hash_raw_header(serialize_header(header))
 
 
 def hash_raw_header(header: bytes) -> str:
     assert isinstance(header, bytes)
-    return hash_encode(sha256d(header))
+    return hash_encode(qhash(header))
 
 
 pow_hash_header = hash_header
@@ -318,9 +323,11 @@ class Blockchain(Logger):
         num = len(data) // HEADER_SIZE
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
-        target = self.get_target(index-1)
+        self.update_size()
+        prev_timestamp: int = self.read_header(start_height - 1).get('timestamp') if index != 0 else 1730075215
         for i in range(num):
             height = start_height + i
+            target = self.get_target(height - 1, prev_timestamp)
             try:
                 expected_header_hash = self.get_hash(height)
             except MissingHeader:
@@ -329,6 +336,8 @@ class Blockchain(Logger):
             header = deserialize_header(raw_header, index*2016 + i)
             self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
+            prev_timestamp = header.get('timestamp')
+            self.update_size()
 
     @with_lock
     def path(self):
@@ -521,30 +530,56 @@ class Blockchain(Logger):
                 raise MissingHeader(height)
             return hash_header(header)
 
-    def get_target(self, index: int) -> int:
+    def get_target(self, height: int, prev_timestamp: int | None = None) -> int:
         # compute target from chunk x, used in chunk x+1
         if constants.net.TESTNET:
             return 0
-        if index == -1:
-            return MAX_TARGET
-        if index < len(self.checkpoints):
-            h, t = self.checkpoints[index]
-            return t
-        # new target
-        first = self.read_header(index * 2016)
-        last = self.read_header(index * 2016 + 2015)
-        if not first or not last:
+
+        anchor_bits = 0x1e05ffff
+        if height == -1:
+            return self.bits_to_target(anchor_bits)
+        
+        ideal_block_time = 600    # in seconds
+        halflife = 2 * 24 * 60 * 60       # 2 days (in seconds)
+        radix = 2**16             # 16 bits for decimal part of fixed-point integer arithmetic
+
+        anchor_target = self.bits_to_target(anchor_bits)
+        if prev_timestamp is None:
+            prev = self.read_header(height)
+            if not prev:
+                raise MissingHeader()
+            prev_timestamp: int = prev.get('timestamp')
+        gen = self.read_header(0)
+        if not gen:
             raise MissingHeader()
-        bits = last.get('bits')
-        target = self.bits_to_target(bits)
-        nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
-        # not any target can be represented in 32 bits:
-        new_target = self.bits_to_target(self.target_to_bits(new_target))
-        return new_target
+        time_delta = cast(int, prev_timestamp - gen.get('timestamp'))
+        height_delta = height + 0   # can be negative
+        # `//` is truncating division (int.__floordiv__) - see note 3 below
+        exponent = int((time_delta - ideal_block_time * (height_delta + 1)) * radix / halflife)
+
+        # Compute equivalent of `num_shifts = math.floor(exponent / 2**16)`
+        num_shifts = exponent >> 16
+
+        exponent = exponent - num_shifts * radix
+        factor = ((195_766_423_245_049 * exponent +
+                971_821_376 * exponent**2 +
+                5_127 * exponent**3 +
+                2**47) >> 48) + radix
+        next_target = anchor_target * factor
+
+        # Calculate `next_target = math.floor(next_target * 2**factor)`
+        if num_shifts < 0:
+            next_target >>= -num_shifts
+        else:
+            # Implementations should be careful of overflow here (see note 6 below).
+            next_target <<= num_shifts
+
+        next_target >>= 16
+        if next_target == 0:
+            next_target =  1   # hardest valid target
+        elif next_target > MAX_TARGET:
+            next_target =  MAX_TARGET            # limit on easiest target
+        return self.bits_to_target(self.target_to_bits(next_target))
 
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
@@ -586,8 +621,7 @@ class Blockchain(Logger):
 
     def chainwork_of_header_at_height(self, height: int) -> int:
         """work done by single header at given height"""
-        chunk_idx = height // 2016 - 1
-        target = self.get_target(chunk_idx)
+        target = self.get_target(height - 1)
         work = ((2 ** 256 - target - 1) // (target + 1)) + 1
         return work
 
@@ -633,7 +667,7 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // 2016 - 1)
+            target = self.get_target(height - 1)
         except MissingHeader:
             return False
         try:
