@@ -177,6 +177,9 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
+python3 -m pip install --no-build-isolation --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements-build-qulacs.txt \
+    || fail "Could not install build dependencies (qulacs)"
 
 info "Installing hardware wallet requirements..."
 python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary cryptography \
