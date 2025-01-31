@@ -37,6 +37,7 @@ datas = [
     (f"{PROJECT_ROOT}/{PYPKG}/wordlist/slip39.txt", f"{PYPKG}/wordlist"),
     (f"{PROJECT_ROOT}/{PYPKG}/chains", f"{PYPKG}/chains"),
     (f"{PROJECT_ROOT}/{PYPKG}/locale", f"{PYPKG}/locale"),
+    (f"{PROJECT_ROOT}/{PYPKG}/plugins", f"{PYPKG}/plugins"),
     (f"{PROJECT_ROOT}/{PYPKG}/gui/icons", f"{PYPKG}/gui/icons"),
 ]
 datas += collect_data_files(f"{PYPKG}.plugins")
@@ -46,7 +47,6 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
-datas.append((f"{PROJECT_ROOT}/{PYPKG}/plugins", f"{PYPKG}/plugins"))
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([f"{PROJECT_ROOT}/{MAIN_SCRIPT}",
